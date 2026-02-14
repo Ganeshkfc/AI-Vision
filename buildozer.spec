@@ -7,7 +7,7 @@ title = AI Vision Assistant
 package.name = aivisionassistant
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.test
+package.domain = org.ganesh
 
 # (str) Source code where the main.py live
 source.dir = .
