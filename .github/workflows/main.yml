@@ -1,30 +1,35 @@
 name: Build Android APK
-
 on:
   push:
     branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # Stable version for Buildozer
 
     steps:
-      - uses: actions/checkout@v4 # Updated to v4
+      - uses: actions/checkout@v4
 
-      - name: Get Date
-        id: get-date
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python_version: '3.11'
+
+      - name: Install Dependencies
         run: |
-          echo "date=$(date +'%Y-%m-%d-%H;%M;%S')" >> $GITHUB_OUTPUT
+          sudo apt-get update
+          sudo apt-get install -y python3-pip build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libgstreamer1.0-gstreamer-lite0.10-dev libgstreamer1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good 
+          sudo apt-get install -y autoconf automake libtool pkg-config cmake
+          pip install --upgrade pip
+          pip install buildozer cython==0.29.33
 
       - name: Build with Buildozer
-        # Updated to the current maintained version of the Buildozer Action
-        uses: ArtemSBulgakov/buildozer-action@v1 
-        with:
-          buildozer_version: master
-          python_version: 3.11
+        run: |
+          # Use "yes" to auto-accept Android SDK licenses
+          yes | buildozer -v android debug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4 # FIXED: Updated from v3 to v4
+        uses: actions/upload-artifact@v4
         with:
-          name: VisionApp-${{ steps.get-date.outputs.date }}
+          name: VisionApp-Android
           path: bin/*.apk
