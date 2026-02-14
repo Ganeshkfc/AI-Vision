@@ -18,12 +18,11 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          # Fix potential broken dependencies first
-          sudo apt-get install -y -f 
-          # Explicitly install the missing dependency alongside others
+          sudo apt-get install -y -f
           sudo apt-get install -y \
             build-essential \
             git \
+            coreutils \
             python3-dev \
             ffmpeg \
             libsdl2-dev \
@@ -56,9 +55,10 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          yes | buildozer -v android debug
+          # We use /usr/bin/yes to ensure the absolute path is found
+          /usr/bin/yes | buildozer -v android debug
         env:
-          PATH: /home/runner/.local/bin:$PATH
+          PATH: /home/runner/.local/bin:/usr/bin:/bin:$PATH
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
