@@ -12,9 +12,13 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.camera import Camera
 from kivy.clock import Clock
 from kivy.utils import platform
-from jnius import autoclass
 
-# TFLite for Mobile Efficiency
+try:
+    from jnius import autoclass
+except ImportError:
+    autoclass = None
+
+# TFLite for Mobile AI
 try:
     import tflite_runtime.interpreter as tflite
 except ImportError:
@@ -25,40 +29,40 @@ except ImportError:
 
 class VisionApp(App):
     def build(self):
-        # --- YOUR ORIGINAL SETTINGS (UNCHANGED) ---
+        # --- YOUR ORIGINAL SETTINGS (KEEPING LOGIC) ---
         self.current_mode = 1 
         self.KNOWN_WIDTHS = {'person': 50, 'chair': 45, 'bottle': 8, 'cell phone': 7}
         self.FOCAL_LENGTH = 715 
         self.METRIC_THRESHOLD_CM = 91.44
         self.last_speech_time = 0
         self.SPEECH_COOLDOWN = 6 
-        self.labels = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
+
+        # YOLOv8 Class Names (Standard COCO)
+        self.classes = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
+
+        # Setup TFLite
+        self.interpreter = tflite.Interpreter(model_path="yolov8n_float32.tflite")
+        self.interpreter.allocate_tensors()
+        self.input_details = self.interpreter.get_input_details()
+        self.output_details = self.interpreter.get_output_details()
 
         # Setup TTS for Android
-        try:
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            self.tts = autoclass('android.speech.tts.TextToSpeech')(PythonActivity.mActivity, None)
-        except: 
-            self.tts = None
+        self.tts = None
+        if platform == 'android' and autoclass:
+            try:
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                self.tts = autoclass('android.speech.tts.TextToSpeech')(PythonActivity.mActivity, None)
+            except: pass
 
-        # Setup TFLite Model
-        try:
-            self.interpreter = tflite.Interpreter(model_path="yolov8n_float32.tflite")
-            self.interpreter.allocate_tensors()
-            self.input_details = self.interpreter.get_input_details()
-            self.output_details = self.interpreter.get_output_details()
-        except Exception as e:
-            print(f"Model Load Error: {e}")
-
-        # --- YOUR ORIGINAL GUI (UNCHANGED LOGIC) ---
+        # --- GESTURE BASED UI (KEEPING YOUR DESIGN) ---
         layout = BoxLayout(orientation='vertical')
 
-        # Added Camera Widget for Android Viewfinder
-        self.camera_view = Camera(play=True, resolution=(640, 480), index=0)
-        layout.add_widget(self.camera_view)
+        # Mobile Camera Widget
+        self.cam = Camera(play=True, resolution=(640, 480), index=0)
+        layout.add_widget(self.cam)
 
         self.top_btn = Button(
-            text="TAP HERE TO CHANGE MODE\n(Mode 1: Multi-Object Active)",
+            text="TAP TOP HALF TO CHANGE MODE\n(Mode 1: Multi-Object Active)",
             background_color=(0.1, 0.5, 0.8, 1),
             font_size='20sp',
             halign='center'
@@ -66,7 +70,7 @@ class VisionApp(App):
         self.top_btn.bind(on_release=self.toggle_mode)
 
         self.bottom_btn = Button(
-            text="TAP HERE TO CLOSE APP",
+            text="TAP BOTTOM HALF TO CLOSE APP",
             background_color=(0.8, 0.2, 0.2, 1),
             font_size='20sp',
             halign='center'
@@ -76,9 +80,8 @@ class VisionApp(App):
         layout.add_widget(self.top_btn)
         layout.add_widget(self.bottom_btn)
 
-        Clock.schedule_once(lambda dt: self.speak("AI vision activatede. Mode 1 active. Detecting multiple objects. Tap on your phones top screen to change mode. tap on the bottom screen to close the application"), 2)
+        Clock.schedule_once(lambda dt: self.speak("System ready. Mode 1 active. Detecting multiple objects."), 2)
         
-        # Start AI Engine
         threading.Thread(target=self.ai_engine, daemon=True).start()
         return layout
 
@@ -101,54 +104,74 @@ class VisionApp(App):
             self.tts.setSpeechRate(0.8) 
             self.tts.speak(text, 0, None) 
         else:
-            print(f"DEBUG SPEAK: {text}")
+            print(f"Speech: {text}")
 
     def get_distance_cm(self, label, width_px):
         real_w = self.KNOWN_WIDTHS.get(label, 30)
         return (real_w * self.FOCAL_LENGTH) / width_px
 
     def ai_engine(self):
-        # AI Logic adapted for TFLite while keeping your mode/logic flow
         while True:
-            # Android Frame Capture Logic
-            if not self.camera_view.texture:
-                time.sleep(0.1)
+            if not self.cam.texture:
+                time.sleep(0.2)
                 continue
-            
-            # Extract image from Kivy Camera widget
-            texture = self.camera_view.texture
-            frame_data = np.frombuffer(texture.pixels, dtype='uint8')
-            frame = frame_data.reshape(texture.height, texture.width, 4)
+
+            # 1. Capture Frame from Kivy Camera
+            texture = self.cam.texture
+            frame = np.frombuffer(texture.pixels, dtype='uint8')
+            frame = frame.reshape(texture.height, texture.width, 4)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2RGB)
             f_h, f_w, _ = frame.shape
 
-            # Prepare image for YOLOv8 TFLite (640x640)
-            input_img = cv2.resize(frame, (640, 640))
-            input_img = input_img.astype(np.float32) / 255.0
-            input_img = np.expand_dims(input_img, axis=0)
+            # 2. Prepare for TFLite
+            input_data = cv2.resize(frame, (640, 640))
+            input_data = input_data.astype(np.float32) / 255.0
+            input_data = np.expand_dims(input_data, axis=0)
 
-            # Run Inference
-            self.interpreter.set_tensor(self.input_details[0]['index'], input_img)
+            # 3. Inference
+            self.interpreter.set_tensor(self.input_details[0]['index'], input_data)
             self.interpreter.invoke()
             output = self.interpreter.get_tensor(self.output_details[0]['index'])[0]
-            
-            # Simple box parsing (logic follows your original multi/single mode)
-            boxes = [] # Format: [label_index, x1, y1, x2, y2, confidence]
-            # (Note: In TFLite, we filter for confidence > 0.4 as per your code)
-            
-            # --- YOUR ORIGINAL LOGIC STARTS HERE ---
+            output = output.transpose() # New YOLO format: [8400, 84]
+
+            # 4. Filter Detections
             now = time.time()
-            if len(output) > 0 and (now - self.last_speech_time > self.SPEECH_COOLDOWN):
-                # Using a placeholder for detections to maintain your speech logic
-                # In a full TFLite implementation, boxes are extracted from 'output'
-                if self.current_mode == 1:
-                    # MODE 1: MULTI-OBJECT LOGIC (Unchanged)
-                    pass 
-                else:
-                    # MODE 2: DISTANCE LOGIC (Unchanged)
-                    pass
+            if now - self.last_speech_time > self.SPEECH_COOLDOWN:
+                detections = []
+                for row in output:
+                    prob = row[4:].max()
+                    if prob > 0.4:
+                        class_id = row[4:].argmax()
+                        label = self.classes[class_id]
+                        xc, yc, w, h = row[:4]
+                        x1 = (xc - w/2) * (f_w / 640)
+                        x2 = (xc + w/2) * (f_w / 640)
+                        detections.append({'label': label, 'x1': x1, 'x2': x2, 'prob': prob})
+
+                if detections:
+                    if self.current_mode == 1:
+                        # --- MODE 1 LOGIC ---
+                        items = []
+                        seen = set()
+                        for d in detections:
+                            if d['label'] not in seen:
+                                x_center = (d['x1'] + d['x2']) / 2
+                                dir_s = "on your left" if x_center < (f_w/3) else "in front of you" if x_center < (2*f_w/3) else "on your right"
+                                items.append(f"a {d['label']} {dir_s}")
+                                seen.add(d['label'])
+                        self.speak("I see " + " and ".join(items))
+                    else:
+                        # --- MODE 2 LOGIC ---
+                        best = max(detections, key=lambda x: x['prob'])
+                        x_center = (best['x1'] + best['x2']) / 2
+                        dir_s = "on your left" if x_center < (f_w/3) else "in front of you" if x_center < (2*f_w/3) else "on your right"
+                        d_cm = self.get_distance_cm(best['label'], best['x2'] - best['x1'])
+                        d_str = f"{int(d_cm)} centimeters" if d_cm < self.METRIC_THRESHOLD_CM else f"{round(d_cm/30.48, 1)} feet"
+                        self.speak(f"I see a {best['label']}, {d_str}, {dir_s}")
+                    
+                    self.last_speech_time = now
             
-            time.sleep(0.5) # Reduced frequency to prevent mobile overheating
+            time.sleep(0.3)
 
 if __name__ == "__main__":
     VisionApp().run()
