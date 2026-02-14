@@ -2,14 +2,14 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ] # Runs every time you save to the main branch
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4 # Updated to v4
 
       - name: Get Date
         id: get-date
@@ -17,13 +17,14 @@ jobs:
           echo "date=$(date +'%Y-%m-%d-%H;%M;%S')" >> $GITHUB_OUTPUT
 
       - name: Build with Buildozer
-        uses: ArtemSerebrenninkov/buildozer-action@v1
+        # Updated to the current maintained version of the Buildozer Action
+        uses: ArtemSBulgakov/buildozer-action@v1 
         with:
           buildozer_version: master
           python_version: 3.11
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # FIXED: Updated from v3 to v4
         with:
           name: VisionApp-${{ steps.get-date.outputs.date }}
           path: bin/*.apk
